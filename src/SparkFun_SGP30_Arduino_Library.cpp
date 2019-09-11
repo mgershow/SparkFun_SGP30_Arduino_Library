@@ -284,7 +284,7 @@ SGP30ERR SGP30::verifyCommunication(int16_t maxtrials) {
 		return err;
 	}
 	if (errorPinNumber > 0) {
-		digitalWrite(errorPinNumber, HIGH); |
+		digitalWrite(errorPinNumber, HIGH); 
 	}
 	for (int16_t j = 0; j < maxtrials && err; ++j) {
 		//TODO: add code to clock out stuck bus, if that's the issue
@@ -292,7 +292,7 @@ SGP30ERR SGP30::verifyCommunication(int16_t maxtrials) {
 		err = verifySerialID();
 	}
 	if (errorPinNumber > 0) {
-		digitalWrite(errorPinNumber, LOW); |
+		digitalWrite(errorPinNumber, LOW); 
 	}
 	return err;
 }
