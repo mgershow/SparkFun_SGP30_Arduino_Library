@@ -73,6 +73,8 @@ class SGP30
     uint16_t H2;
     uint16_t ethanol;
     uint64_t serialID;
+	uint32_t requestTime;
+	uint32_t readTime;
 	int errorPinNumber;
 
     //default constructor
@@ -94,7 +96,8 @@ class SGP30
     //Will give fixed values of CO2=400 and TVOC=0 for first 15 seconds after init
     //returns false if CRC8 check failed and true if successful
     SGP30ERR measureAirQuality(void);
-
+	SGP30ERR readAirQuality(void);
+	void requestAirQuality(void);
     //Returns the current calculated baseline from
     //the sensor's dynamic baseline calculations
     //Save baseline periodically to non volatile memory
@@ -124,6 +127,9 @@ class SGP30
     //Intended for part verification and testing
     //these raw signals are used as inputs to the onchip calibrations and algorithms
     SGP30ERR measureRawSignals(void);
+	SGP30ERR readRawSignals(void);
+	void requestRawSignals(void);
+
 
 
     //Soft reset - not device specific
@@ -152,6 +158,8 @@ class SGP30
 	//requests serial number & verifies that it matches;
 	//on CRC error, repeates request maxtrials times or until success
 	SGP30ERR verifyCommunication(int16_t maxtrials = 10);
+
+
   private:
     //This stores the requested i2c port
     TwoWire * _i2cPort;

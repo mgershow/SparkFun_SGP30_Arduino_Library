@@ -66,7 +66,7 @@ void SGP30::setErrorPin(int pinNumber)
 bool SGP30::begin(TwoWire &wirePort) {
   _i2cPort = &wirePort; //Grab which port the user wants us to use
  // _i2cPort->begin(); // commented out by MHG; user is responsible for initializing i2cPort.
-  getSerialID();
+  setSerialID();
   if (serialID == 0) return false;
   return true;
 }
@@ -86,27 +86,41 @@ void SGP30::initAirQuality(void) {
 //Will give fixed values of CO2=400 and TVOC=0 for first 15 seconds after init
 //Returns SUCCESS if successful or other error code if unsuccessful
 SGP30ERR SGP30::measureAirQuality(void) {
-  _i2cPort->beginTransmission(_SGP30Address);
-  _i2cPort->write(measure_air_quality, 2); //command to measure air quality
-  _i2cPort->endTransmission();
+	requestAirQuality();
   //Hang out while measurement is taken. datasheet says 10-12ms
   delay(12);
-  //Comes back in 6 bytes, CO2 data(MSB) / data(LSB) / Checksum / TVOC data(MSB) / data(LSB) / Checksum
-  uint8_t toRead;
-  toRead = _i2cPort->requestFrom(_SGP30Address, (uint8_t)6);
-  if (toRead != 6) return ERR_I2C_TIMEOUT; //Error out
-  uint16_t _CO2 = _i2cPort->read() << 8; //store MSB in CO2
-  _CO2 |= _i2cPort->read(); //store LSB in CO2
-  uint8_t checkSum = _i2cPort->read(); //verify checksum
-  if (checkSum != _CRC8(_CO2)) return ERR_BAD_CRC; //checksum failed
-  uint16_t _TVOC = _i2cPort->read() << 8; //store MSB in TVOC
-  _TVOC |= _i2cPort->read(); //store LSB in TVOC
-  checkSum = _i2cPort->read(); //verify checksum
-  if (checkSum != _CRC8(_TVOC)) return ERR_BAD_CRC; //checksum failed
-  CO2 = _CO2; //publish valid data
-  TVOC = _TVOC; //publish valid data
-  return SUCCESS;
+  return readAirQuality();
 }
+
+void SGP30::requestAirQuality(void) {
+	_i2cPort->beginTransmission(_SGP30Address);
+	_i2cPort->write(measure_air_quality, 2); //command to measure air quality
+	_i2cPort->endTransmission();
+	requestTime = millis();
+}
+
+SGP30ERR SGP30::readAirQuality(void) {
+	while (millis() - requestTime < 12) {
+		delay(1);
+	}
+	//Comes back in 6 bytes, CO2 data(MSB) / data(LSB) / Checksum / TVOC data(MSB) / data(LSB) / Checksum
+	uint8_t toRead;
+	toRead = _i2cPort->requestFrom(_SGP30Address, (uint8_t)6);
+	if (toRead != 6) return ERR_I2C_TIMEOUT; //Error out
+	uint16_t _CO2 = _i2cPort->read() << 8; //store MSB in CO2
+	_CO2 |= _i2cPort->read(); //store LSB in CO2
+	uint8_t checkSum = _i2cPort->read(); //verify checksum
+	if (checkSum != _CRC8(_CO2)) return ERR_BAD_CRC; //checksum failed
+	uint16_t _TVOC = _i2cPort->read() << 8; //store MSB in TVOC
+	_TVOC |= _i2cPort->read(); //store LSB in TVOC
+	checkSum = _i2cPort->read(); //verify checksum
+	if (checkSum != _CRC8(_TVOC)) return ERR_BAD_CRC; //checksum failed
+	CO2 = _CO2; //publish valid data
+	TVOC = _TVOC; //publish valid data
+	readTime = millis();
+	return SUCCESS;
+}
+
 
 //Returns the current calculated baseline from
 //the sensor's dynamic baseline calculations
@@ -192,26 +206,40 @@ SGP30ERR SGP30::getFeatureSetVersion(void) {
 //these raw signals are used as inputs to the onchip calibrations and algorithms
 //Returns SUCCESS if successful or other error code if unsuccessful
 SGP30ERR SGP30::measureRawSignals(void) {
-  _i2cPort->beginTransmission(_SGP30Address);
-  _i2cPort->write(measure_raw_signals, 2); //command to measure raw signals
-  _i2cPort->endTransmission();
-  //Hang out while measurement is taken. datasheet says 20-25ms
-  delay(25);
-  uint8_t toRead;
-  //Comes back in 6 bytes, H2 data(MSB) / data(LSB) / Checksum / ethanol data(MSB) / data(LSB) / Checksum
-  toRead = _i2cPort->requestFrom(_SGP30Address, (uint8_t)6);
-  if (toRead != 6) return ERR_I2C_TIMEOUT; //Error out
-  uint16_t _H2 = _i2cPort->read() << 8; //store MSB in _H2
-  _H2 |= _i2cPort->read(); //store LSB in _H2
-  uint8_t checkSum = _i2cPort->read(); //verify checksum
-  if (checkSum != _CRC8(_H2)) return ERR_BAD_CRC; //checksumfailed
-  uint16_t _ethanol = _i2cPort->read() << 8; //store MSB in ethanol
-  _ethanol |= _i2cPort->read(); //store LSB in ethanol
-  checkSum = _i2cPort->read(); //verify checksum
-  if (checkSum != _CRC8(_ethanol)) return ERR_BAD_CRC; //checksum failed
-  H2 = _H2; //publish valid data
-  ethanol = _ethanol; //publish valid data
-  return SUCCESS;
+	requestRawSignals();
+	delay(25);
+	return readRawSignals();
+}
+
+
+void SGP30::requestRawSignals(void) {
+	_i2cPort->beginTransmission(_SGP30Address);
+	_i2cPort->write(measure_raw_signals, 2); //command to measure raw signals
+	_i2cPort->endTransmission();
+	requestTime = millis();
+}
+
+SGP30ERR SGP30::readRawSignals(void) {
+	while (millis() - requestTime < 25) {
+		delay(1);
+	}
+	
+	uint8_t toRead;
+	//Comes back in 6 bytes, H2 data(MSB) / data(LSB) / Checksum / ethanol data(MSB) / data(LSB) / Checksum
+	toRead = _i2cPort->requestFrom(_SGP30Address, (uint8_t)6);
+	if (toRead != 6) return ERR_I2C_TIMEOUT; //Error out
+	uint16_t _H2 = _i2cPort->read() << 8; //store MSB in _H2
+	_H2 |= _i2cPort->read(); //store LSB in _H2
+	uint8_t checkSum = _i2cPort->read(); //verify checksum
+	if (checkSum != _CRC8(_H2)) return ERR_BAD_CRC; //checksumfailed
+	uint16_t _ethanol = _i2cPort->read() << 8; //store MSB in ethanol
+	_ethanol |= _i2cPort->read(); //store LSB in ethanol
+	checkSum = _i2cPort->read(); //verify checksum
+	if (checkSum != _CRC8(_ethanol)) return ERR_BAD_CRC; //checksum failed
+	H2 = _H2; //publish valid data
+	ethanol = _ethanol; //publish valid data
+	readTime = millis();
+	return SUCCESS;
 }
 
 //Soft reset - not device specific
@@ -255,9 +283,16 @@ SGP30ERR SGP30::verifyCommunication(int16_t maxtrials) {
 	if (err == SUCCESS || err == ERR_SERIAL_MISMATCH) {
 		return err;
 	}
+	if (errorPinNumber > 0) {
+		digitalWrite(errorPinNumber, HIGH); |
+	}
 	for (int16_t j = 0; j < maxtrials && err; ++j) {
 		//TODO: add code to clock out stuck bus, if that's the issue
+		delay(10);
 		err = verifySerialID();
+	}
+	if (errorPinNumber > 0) {
+		digitalWrite(errorPinNumber, LOW); |
 	}
 	return err;
 }
