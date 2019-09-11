@@ -50,13 +50,22 @@ SGP30::SGP30() {
   H2 = 0;
   ethanol = 0;
   serialID = 0;
+  errorPinNumber = -1; 
+}
+
+void SGP30::setErrorPin(int pinNumber)
+{
+	errorPinNumber = pinNumber;
+	if (pinNumber > 0) {
+		pinMode(pinNumber, OUTPUT);
+	}
 }
 
 //Start I2C communication using specified port
 //Returns true if successful or false if no sensor detected
 bool SGP30::begin(TwoWire &wirePort) {
   _i2cPort = &wirePort; //Grab which port the user wants us to use
-  _i2cPort->begin();
+ // _i2cPort->begin(); // commented out by MHG; user is responsible for initializing i2cPort.
   getSerialID();
   if (serialID == 0) return false;
   return true;
@@ -215,7 +224,7 @@ void SGP30::generalCallReset(void) {
 
 //readout of serial ID register can identify chip and verify sensor presence
 //Returns SUCCESS if successful or other error code if unsuccessful
-SGP30ERR SGP30::getSerialID(void) {
+SGP30ERR SGP30::readSerialID(uint64_t &idnumdest) {
   _i2cPort->beginTransmission(_SGP30Address);
   _i2cPort->write(get_serial_id, 2); //command to get serial ID
   _i2cPort->endTransmission();
@@ -237,8 +246,34 @@ SGP30ERR SGP30::getSerialID(void) {
   _serialID3 |= _i2cPort->read() ; //store LSB in _serialID3
   uint8_t checkSum3 = _i2cPort->read(); //verify checksum
   if (checkSum3 != _CRC8(_serialID3)) return ERR_BAD_CRC; //checksum failed
-  serialID = ((uint64_t)_serialID1 << 32) + ((uint64_t)_serialID2 << 16) + ((uint64_t)_serialID3); //publish valid data
+  idnumdest = ((uint64_t)_serialID1 << 32) + ((uint64_t)_serialID2 << 16) + ((uint64_t)_serialID3); //publish valid data
   return SUCCESS;
+}
+
+SGP30ERR SGP30::verifyCommunication(int16_t maxtrials) {
+	SGP30ERR err = verifySerialID();
+	if (err == SUCCESS || err == ERR_SERIAL_MISMATCH) {
+		return err;
+	}
+	for (int16_t j = 0; j < maxtrials && err; ++j) {
+		//TODO: add code to clock out stuck bus, if that's the issue
+		err = verifySerialID();
+	}
+	return err;
+}
+
+SGP30ERR SGP30::setSerialID(void) {
+	return readSerialID(&serialID);
+}
+
+SGP30ERR SGP30::verifySerialID(void) {
+	uint64_t id;
+	SGP30ERR err;
+	err = readSerialID(&id);
+	if (err) {
+		return err;
+	}
+	return id == serialID ? SUCCESS : ERR_SERIAL_MISMATCH;
 }
 
 //Sensor runs on chip self test

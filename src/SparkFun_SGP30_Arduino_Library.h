@@ -46,7 +46,8 @@ typedef enum {
   SUCCESS = 0,
   ERR_BAD_CRC,
   ERR_I2C_TIMEOUT,
-  SELF_TEST_FAIL
+  SELF_TEST_FAIL,
+  ERR_SERIAL_MISMATCH
 } SGP30ERR;
 
 const uint8_t init_air_quality[2] = {0x20, 0x03};
@@ -72,9 +73,14 @@ class SGP30
     uint16_t H2;
     uint16_t ethanol;
     uint64_t serialID;
+	int errorPinNumber;
 
     //default constructor
     SGP30();
+
+	//while library tries to recover from a CRC error, sets error pin high
+	//this command tells you which pin to use; set pinNumber < 0 to disable 
+	void setErrorPin(int pinNumber);
 
     //Start I2C communication using specified port
     bool begin(TwoWire &wirePort = Wire);//If user doesn't specificy then Wire will be used
@@ -125,14 +131,27 @@ class SGP30
     void generalCallReset(void);
 
     //readout of serial ID register can identify chip and verify sensor presence
-    //returns false if CRC8 check failed and true if successful
-    SGP30ERR getSerialID(void);
+    //returns SUCCESS = 0 if successful; or an error code if CRC8 check fails or if serial number does not match
+	//requires setSerialID to be run first
+	//
+    SGP30ERR verifySerialID(void);
+
+	//reads serialID and saves it to structure
+	//returns SUCCESS (= 0) if successful; or an error code if CRC8 check fails 
+	SGP30ERR setSerialID(void);
+
+	//reads serialID and stores value in idnumdest; 
+	//returns SUCCESS (= 0) if successful; or an error code if CRC8 check fails 
+	SGP30ERR readSerialID(uint64_t& idnumdest);
+
 
     //Sensor runs on chip self test
     //returns true if successful
     SGP30ERR measureTest(void);
 
-
+	//requests serial number & verifies that it matches;
+	//on CRC error, repeates request maxtrials times or until success
+	SGP30ERR verifyCommunication(int16_t maxtrials = 10);
   private:
     //This stores the requested i2c port
     TwoWire * _i2cPort;
