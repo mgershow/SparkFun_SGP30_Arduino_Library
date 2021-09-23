@@ -298,13 +298,14 @@ SGP30ERR SGP30::verifyCommunication(int16_t maxtrials) {
 }
 
 SGP30ERR SGP30::setSerialID(void) {
-	return readSerialID(&serialID);
+	
+	return readSerialID(serialID);
 }
 
 SGP30ERR SGP30::verifySerialID(void) {
 	uint64_t id;
 	SGP30ERR err;
-	err = readSerialID(&id);
+	err = readSerialID(id);
 	if (err) {
 		return err;
 	}
